@@ -1,0 +1,161 @@
+
+function setup() {
+    frameRate(120);
+}
+
+var distanceFromCenter = 150;
+var XdistanceFromCenter = 0;
+var belowCenter = 1;
+
+function draw() {
+    
+    //Resizable Canvas
+    createCanvas(window.innerWidth, window.innerHeight);
+    background(30, 112, 115);
+    angleMode(DEGREES);
+
+    //Size
+    size = 1.25 * Math.min(window.innerHeight,window.innerWidth);
+
+    //Time variables
+    var hourOffset = 0;
+    var hourVar = hour() + hourOffset;
+    var minuteVar = minute();
+    var secondVar = second();
+    
+    //Hand degrees 
+    var hourDegree = 90 - 30*(hourVar+minuteVar/60+secondVar/3600);
+    var rightHourDegree = hourDegree-90;
+    var leftHourDegree = hourDegree+90;
+    var minDegree =  90 - 6*(minuteVar+secondVar/60);
+    var secDegree = 90 - 6*secondVar;
+
+    //Hand lengths
+    var hourLength = size/4.70;
+    var hourTopLength = size/23;
+    var halfHourWidth = size/140;
+    var minLength = size/3.65;
+    var secLength = size/3.25;
+
+    //Positional variables
+    var hourXPos = cos(hourDegree)*hourLength;
+    var hourYPos = sin(hourDegree)*hourLength;
+    var hourTopXPos = cos(hourDegree)*hourTopLength;
+    var hourTopYPos = sin(hourDegree)*hourTopLength;
+    var righthourXPos = cos(rightHourDegree)*halfHourWidth;
+    var righthourYPos = sin(rightHourDegree)*halfHourWidth;
+    var lefthourXPos = cos(leftHourDegree)*halfHourWidth;
+    var lefthourYPos = sin(leftHourDegree)*halfHourWidth;
+    var minXPos = cos(minDegree)*minLength;
+    var minYPos = sin(minDegree)*minLength;
+    var secXPos = cos(secDegree)*secLength;
+    var secYPos = sin(secDegree)*secLength;
+    var secDecorXPos = cos(secDegree-180)*secLength*0.3;
+    var secDecorYPos = sin(secDegree-180)*secLength*0.3;
+    var centerX = window.innerWidth/2;
+    var centerY = window.innerHeight/2;
+    var shadowLength = sqrt(0.7*distanceFromCenter);
+    var shadowDegrees = -90 - 15*(hourVar+minuteVar/60+secondVar/3600);
+    shadowDegrees = (acos(XdistanceFromCenter/distanceFromCenter)+180)*belowCenter;
+    var shadowX = cos(shadowDegrees)*shadowLength; 
+    var shadowY = sin(shadowDegrees)*shadowLength;
+    var shadowCenterX = centerX+shadowX;
+    var shadowCenterY = centerY-shadowY;
+
+    //Clock
+    strokeWeight(size/200);
+    stroke(0, 0, 0);
+    fill(255, 255, 255);
+    ellipse(centerX,centerY,size/1.45,size/1.45);
+
+    //shadow color
+    stroke(150);
+
+    //Hour hand shadow
+    strokeWeight(size/140);
+    fill(255, 255,255)
+    quad(shadowCenterX+lefthourXPos,shadowCenterY-lefthourYPos,
+        shadowCenterX+righthourXPos,shadowCenterY-righthourYPos,
+        shadowCenterX+hourXPos+righthourXPos,shadowCenterY-hourYPos-righthourYPos,
+        shadowCenterX+hourXPos+lefthourXPos,shadowCenterY-hourYPos-lefthourYPos);
+    fill(150);
+    ellipse(shadowCenterX+hourXPos,shadowCenterY-hourYPos,halfHourWidth*2.05,halfHourWidth*2.05);
+    line(shadowCenterX+hourXPos,shadowCenterY-hourYPos,shadowCenterX+hourXPos+hourTopXPos,shadowCenterY-hourYPos-hourTopYPos);
+
+    //hour hand bottom shadow
+    strokeWeight(size/50);
+    line(shadowCenterX,shadowCenterY,centerX,centerY);
+
+    //Second hand shadow
+    strokeWeight(size/500);
+    line(shadowCenterX,shadowCenterY,shadowCenterX+secXPos,shadowCenterY-secYPos);
+    line(shadowCenterX,shadowCenterY,shadowCenterX+0.77*secDecorXPos,shadowCenterY-0.77*secDecorYPos);
+    noFill();
+    ellipse(shadowCenterX+secDecorXPos,shadowCenterY-secDecorYPos,size/25,size/25);
+
+    //Minute hand shadow
+    strokeWeight(size/125);
+    line(shadowCenterX,shadowCenterY,shadowCenterX+minXPos,shadowCenterY-minYPos);
+
+    //Middle circle shadow
+    noStroke();
+    fill(150);
+    ellipse(shadowCenterX,shadowCenterY,size/30,size/30);
+
+    //Hour marks
+    strokeWeight(size/200);
+    stroke(0, 0, 0);
+    for (var i = 0; i<12; i++) {
+        var markOneX = cos(90-i*30)*size/3.05;
+        var markOneY = sin(90-i*30)*size/3.05;
+        var markTwoX = cos(90-i*30)*size/3;
+        var markTwoY = sin(90-i*30)*size/3;
+        line(centerX+markOneX,centerY-markOneY,centerX+markTwoX,centerY-markTwoY);
+    }
+
+    //Hour hand
+    strokeWeight(size/140);
+    stroke(207, 87, 87);
+    noFill();
+    quad(centerX+lefthourXPos,centerY-lefthourYPos,
+        centerX+righthourXPos,centerY-righthourYPos,
+        centerX+hourXPos+righthourXPos,centerY-hourYPos-righthourYPos,
+        centerX+hourXPos+lefthourXPos,centerY-hourYPos-lefthourYPos);
+    fill(207, 87, 87);
+    ellipse(centerX+hourXPos,centerY-hourYPos,halfHourWidth*2.05,halfHourWidth*2.05);
+    line(centerX+hourXPos,centerY-hourYPos,centerX+hourXPos+hourTopXPos,centerY-hourYPos-hourTopYPos);
+
+    //Minute hand
+    strokeWeight(size/125);
+    stroke(0, 21, 255);
+    line(centerX,centerY,centerX+minXPos,centerY-minYPos);
+    
+    //Second hand
+    strokeWeight(size/500);
+    stroke(0, 0, 0);
+    line(centerX,centerY,centerX+secXPos,centerY-secYPos);
+    line(centerX,centerY,centerX+0.77*secDecorXPos,centerY-0.77*secDecorYPos);
+    noFill();
+    ellipse(centerX+secDecorXPos,centerY-secDecorYPos,size/25,size/25);
+
+    //Middle circles
+    noStroke();
+    fill(220, 220, 156);
+    ellipse(centerX,centerY,size/30,size/30);
+    fill(0, 0, 0);
+    ellipse(centerX,centerY,size/50,size/50);
+
+}
+
+//Change mouseClicked to mouseDragged or to mouseMoved to change the effect
+function mouseMoved() {
+    distanceFromCenter = dist(mouseX,mouseY,window.innerWidth/2,window.innerHeight/2);
+    XdistanceFromCenter = mouseX-window.innerWidth/2;
+
+    if (mouseY>window.innerHeight/2) {
+        belowCenter = -1;
+    } else {
+        belowCenter = 1;
+
+    }
+}
