@@ -4,18 +4,20 @@ function setup() {
     angleMode(DEGREES);
 }
 
-var googleWebFonts = ['Lexend','', 'Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
+var googleWebFonts = ['Lexend','none','VT323','Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
 var fontChooser = 0;
 var font = googleWebFonts[fontChooser];
 var fontWeight = 'normal';
 
 var size;
+var counter;
 var centerX;
 var centerY;
 var numbersDrawn = false;
 var distanceFromCenter = 150;
 var XdistanceFromCenter = 0;
 var belowCenter = 1;
+var digtalClockWidth;
 
 
 var link = document.createElement('link');
@@ -34,21 +36,21 @@ function windowResized() {
 
 function drawNumbers() {
 
-    if (font !== '') {
-        
-      //Clock Numbers
+  if (font !== 'none') {
+    if (font !== 'VT323') {
+      //Analog clock Numbers
       for (var i = 0; i<13; i++) {
 
-        let textXPos = cos(90-i*30)*size/3.45;
-        let textYPos = sin(90-i*30)*size/3.45;
+        let analogNumberXPos = cos(90-i*30)*size/3.45;
+        let analogNumberYPos = sin(90-i*30)*size/3.45;
         
-        number = i
+        var analogNumber = i
         if (i === 0) {
-            number = 12
+            analogNumber = 12
         }
 
 
-        let p = createP(number);
+        let p = createP(analogNumber);
 
         p.style('color', 'black');
         p.style('font-family', font);
@@ -63,11 +65,62 @@ function drawNumbers() {
         p.style('position', 'fixed');
         p.style('text-anchor', 'middle');
 
-        p.id('number'+ i);
-        var numberWidth = document.getElementById('number' + i).offsetWidth;
-        p.position(centerX+textXPos - (4/8*numberWidth), centerY-textYPos);
+        p.id('analogNumber'+ i);
+        var numberWidth = document.getElementById('analogNumber' + i).offsetWidth;
+        p.position(centerX+analogNumberXPos - (4/8*numberWidth), centerY-analogNumberYPos);
       }
     }
+    
+    //Digital clock numbers
+    let digitalNumberYPos = 0.5*size/1.45 + size/70;
+
+    var newHourVar = hour();
+
+    if (hour()>12) {
+        newHourVar = hour() - 12;
+    }
+    
+    if (newHourVar>9) {
+        var a = 1;
+        var b = newHourVar-10
+    } else {
+        var a = 0;
+        var b = newHourVar
+    }
+
+
+    if (minute()>9) {
+        var c = (minute() - (minute() % 10))/10;
+        var d= minute() % 10;
+    } else {
+        var c = 0;
+        var d = minute();
+    }
+    /*let div = document.createElement("div");
+
+    div.style('margin', 'auto');
+    div.style('position', 'fixed');
+    div.style('width', 'fit-content');
+    div.style('height', 'fit-content');
+    div.style('margin', 'auto');*/
+
+    let n = createP(a +''+b+':'+c+''+d);
+    n.style('color', 'black');
+    //n.style('text-align', 'center');
+    //n.style('vertical-align', 'middle')
+    n.style('font-family', font);
+    n.style('font-weight', fontWeight);
+    n.style('font-size', '' + Math.round(size/15.00) + 'px');
+    n.style('line-height', '8 rem');
+    n.style('margin', 'auto');
+    n.style('position', 'fixed');
+    n.style('text-anchor', 'middle');
+    n.id('digitalNumber' + fontChooser);
+    digtalClockWidth = document.getElementById('digitalNumber' + fontChooser).offsetWidth;
+    n.position(centerX - (1/2*digtalClockWidth), centerY+digitalNumberYPos);
+  } 
+
+    
 }
 function draw() {
     
@@ -83,9 +136,18 @@ function draw() {
     var leftHourDegree = hourDegree+90;
     var minDegree =  90 - 6*(minuteVar+secondVar/60);
     var secDegree = 90 - 6*secondVar;
-    
+
+    if (secondVar<1) {
+       windowResized();
+    }
+
     //Change these length/size variables
-    size = 1.25 * Math.min(window.innerHeight,window.innerWidth);
+    if (window.innerWidth > 0.8*window.innerHeight){
+        size = 1.1 * Math.min(window.innerHeight,window.innerWidth);
+    } else {
+        size = 1.35 * Math.min(window.innerHeight,window.innerWidth);
+    }
+    
 
     var hourLength = size/5.5;
     var minLength = size/3.8;
@@ -106,7 +168,7 @@ function draw() {
     //leave these positional variables
     centerX = window.innerWidth/2;
     centerY = window.innerHeight/2;
-
+    
     var hourXPos = cos(hourDegree)*hourLength;
     var hourYPos = sin(hourDegree)*hourLength;
     var hourTopXPos = cos(hourDegree)*hourTopLength;
@@ -222,6 +284,7 @@ function draw() {
 
 
 function mouseClicked() {
+
     distanceFromCenter = dist(mouseX,mouseY,window.innerWidth/2,window.innerHeight/2);
     XdistanceFromCenter = mouseX-window.innerWidth/2;
 
