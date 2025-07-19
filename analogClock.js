@@ -4,7 +4,7 @@ function setup() {
     angleMode(DEGREES);
 }
 
-var googleWebFonts = ['Lexend','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Foldit', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
+var googleWebFonts = ['Lexend', 'Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
 var fontChooser = 0;
 var font = googleWebFonts[fontChooser];
 var fontWeight = 'normal';
@@ -33,14 +33,19 @@ function windowResized() {
 }
 
 function drawNumbers() {
-
     //Clock Numbers
-    for (var i = 0; i<12; i++) {
+    for (var i = 0; i<13; i++) {
 
         let textXPos = cos(90-i*30)*size/3.45;
         let textYPos = sin(90-i*30)*size/3.45;
+        
+        number = i
+        if (i === 0) {
+            number = 12
+        }
 
-        let p = createP(i+2);
+
+        let p = createP(number);
 
         p.style('color', 'black');
         p.style('font-family', font);
