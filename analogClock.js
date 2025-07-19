@@ -40,7 +40,7 @@ function drawNumbers() {
         let textXPos = cos(90-i*30)*size/3.45;
         let textYPos = sin(90-i*30)*size/3.45;
 
-        let p = createP(i+1);
+        let p = createP(i+2);
 
         p.style('color', 'black');
         p.style('font-family', font);
