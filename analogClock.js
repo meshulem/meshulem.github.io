@@ -222,9 +222,7 @@ function mouseClicked() {
         belowCenter = 1;
 
     }
-}
 
-function doubleClicked() {
   fontChooser += 1
   if (fontChooser > googleWebFonts.length-1){
     fontChooser = 0;
