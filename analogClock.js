@@ -4,7 +4,7 @@ function setup() {
     angleMode(DEGREES);
 }
 
-var googleWebFonts = ['Lexend', 'Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
+var googleWebFonts = ['Lexend','', 'Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
 var fontChooser = 0;
 var font = googleWebFonts[fontChooser];
 var fontWeight = 'normal';
@@ -33,8 +33,11 @@ function windowResized() {
 }
 
 function drawNumbers() {
-    //Clock Numbers
-    for (var i = 0; i<13; i++) {
+
+    if (font !== '') {
+        
+      //Clock Numbers
+      for (var i = 0; i<13; i++) {
 
         let textXPos = cos(90-i*30)*size/3.45;
         let textYPos = sin(90-i*30)*size/3.45;
@@ -63,6 +66,7 @@ function drawNumbers() {
         p.id('number'+ i);
         var numberWidth = document.getElementById('number' + i).offsetWidth;
         p.position(centerX+textXPos - (4/8*numberWidth), centerY-textYPos);
+      }
     }
 }
 function draw() {
@@ -216,7 +220,7 @@ function draw() {
 
 }
 
-//Change mouseClicked to mouseDragged or to mouseMoved to change the effect
+
 function mouseClicked() {
     distanceFromCenter = dist(mouseX,mouseY,window.innerWidth/2,window.innerHeight/2);
     XdistanceFromCenter = mouseX-window.innerWidth/2;
