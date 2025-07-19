@@ -15,7 +15,7 @@ function draw() {
     angleMode(DEGREES);
 
     //Size
-    size = 1.25 * Math.min(window.innerHeight,window.innerWidth);
+    size = 1.35 * Math.min(window.innerHeight,window.innerWidth);
 
     //Time variables
     var hourOffset = 0;
