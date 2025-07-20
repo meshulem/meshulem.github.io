@@ -4,7 +4,7 @@ function setup() {
     angleMode(DEGREES);
 }
 
-var googleWebFonts = ['Lexend','none','VT323','Foldit','Kablammo', 'Manufacturing Consent', 'Chokokutai', 'Nabla', 'Rubik Glitch Pop', 'Sankofa Display','Miss Fajardose'];
+var googleWebFonts = ['none','Manufacturing Consent', 'Chokokutai','Miss Fajardose','Rubik Glitch', 'Nabla','Kablammo','Kalnia Glaze', 'Sankofa Display','VT323',];
 var fontChooser = 0;
 var font = googleWebFonts[fontChooser];
 var fontWeight = 'normal';
