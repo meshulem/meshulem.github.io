@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Rep Counter & Motion Analyzer</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- MediaPipe Pose and Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+  <style>
+    /* Prevent text selection and optimize canvas rendering */
+    canvas, video {
+      transform: scaleX(-1); /* Mirror camera view to match Python code */
+    }
+    .no-mirror {
+      transform: scaleX(1) !important;
+    }
+    /* Custom scrollbar for control panels */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+          <i class="fa-solid fa-dumbbell text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">MediaPipe Rep & Motion Analyzer</h1>
+          <p class="text-xs text-slate-400">Real-time computer vision signal analysis in browser</p>
+        </div>
+      </div>
+
+      <!-- Quick Stats Top Bar -->
+      <div class="flex items-center gap-4 text-sm font-semibold">
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-lg px-3 py-1.5 flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="fpsDisplay" class="text-emerald-400 font-mono">0 FPS</span>
+        </div>
+        <button id="startBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg font-medium shadow-lg shadow-emerald-950/50 transition flex items-center gap-2">
+          <i class="fa-solid fa-play"></i> Start Camera
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Left / Top Column: Live Feeds (Camera + Plot) -->
+    <div class="lg:col-span-8 flex flex-col gap-6">
+      
+      <!-- Camera Video Stream Box -->
+      <div class="relative bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl aspect-video flex items-center justify-center">
+        <!-- Hidden Raw Video element -->
+        <video id="webcam" class="hidden" playsinline></video>
+        
+        <!-- Canvas for Skeleton Overlay -->
+        <canvas id="outputCanvas" class="w-full h-full object-cover"></canvas>
+
+        <!-- Overlay HUD stats -->
+        <div class="absolute top-4 left-4 no-mirror bg-slate-950/80 backdrop-blur border border-slate-800 rounded-xl p-3 flex gap-4 text-center shadow-lg">
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Standard Reps</div>
+            <div id="repsHUD" class="text-2xl font-black text-blue-400 font-mono">0</div>
+          </div>
+          <div class="w-px bg-slate-800"></div>
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Goal Reps</div>
+            <div id="goalRepsHUD" class="text-2xl font-black text-emerald-400 font-mono">0</div>
+          </div>
+          <div class="w-px bg-slate-800"></div>
+          <div>
+            <div class="text-xs text-slate-400 font-medium">Current Angle</div>
+            <div id="angleHUD" class="text-2xl font-black text-yellow-400 font-mono">180°</div>
+          </div>
+        </div>
+
+        <!-- Camera Off Placeholder -->
+        <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-slate-500 no-mirror z-10">
+          <i class="fa-solid fa-video-slash text-5xl mb-3"></i>
+          <p class="text-sm font-medium">Camera active state is idle. Click "Start Camera" to begin.</p>
+        </div>
+      </div>
+
+      <!-- Real-Time Signal Plot (Matlab Plot Equivalent) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-2">
+        <div class="flex justify-between items-center no-mirror px-1">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-blue-400"></i>
+            <h2 class="font-bold text-sm text-slate-200">Angle Dynamics & Real-Time Peak Detection</h2>
+          </div>
+          <div class="flex gap-4 text-xs font-mono">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-blue-500 inline-block"></span> Signal</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-red-500 inline-block"></span> Min Line</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-emerald-500 inline-block"></span> Goal Line</span>
+          </div>
+        </div>
+
+        <!-- Plot Canvas -->
+        <div class="relative h-56 w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800/80">
+          <canvas id="plotCanvas" class="w-full h-full no-mirror"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right / Bottom Column: Configuration & Controls -->
+    <div class="lg:col-span-4 flex flex-col gap-6">
+      
+      <!-- Settings Panel -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-5">
+        <div class="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <i class="fa-solid fa-sliders text-emerald-400"></i>
+          <h2 class="font-bold text-slate-100">Detection Settings</h2>
+        </div>
+
+        <!-- Active Arm Selector -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Track Arm</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="armRightBtn" class="py-2 px-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-medium text-sm flex items-center justify-center gap-2 transition">
+              <i class="fa-solid fa-check text-xs"></i> Right Arm
+            </button>
+            <button id="armLeftBtn" class="py-2 px-3 rounded-lg border border-slate-700 bg-slate-800 text-slate-400 font-medium text-sm flex items-center justify-center gap-2 transition hover:bg-slate-700">
+              Left Arm
+            </button>
+          </div>
+        </div>
+
+        <!-- Minimum Angle Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Minimum Angle Threshold</span>
+            <span id="minAngleVal" class="font-mono text-red-400 font-bold">120° (Peak 60°)</span>
+          </div>
+          <input id="minAngleInput" type="range" min="30" max="170" value="120" class="w-full accent-red-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+          <p class="text-[11px] text-slate-500">Counts rep when elbow angle bends below this value.</p>
+        </div>
+
+        <!-- Goal Angle Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Goal Angle Threshold</span>
+            <span id="goalAngleVal" class="font-mono text-emerald-400 font-bold">60° (Peak 120°)</span>
+          </div>
+          <input id="goalAngleInput" type="range" min="20" max="120" value="60" class="w-full accent-emerald-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+          <p class="text-[11px] text-slate-500">Counts full-range goal reps for deeper flexes.</p>
+        </div>
+
+        <!-- Smoothing Window Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-300 font-medium">Signal Smoothing Window</span>
+            <span id="smoothVal" class="font-mono text-blue-400 font-bold">5 Frames</span>
+          </div>
+          <input id="smoothInput" type="range" min="1" max="15" value="5" class="w-full accent-blue-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
+          <p class="text-[11px] text-slate-500">Moving average smooths landmark jitter.</p>
+        </div>
+
+        <!-- Reset & Export Controls -->
+        <div class="pt-2 border-t border-slate-800 flex flex-col gap-2">
+          <button id="resetDataBtn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-rotate-left"></i> Reset Rep Counters & Graph
+          </button>
+        </div>
+      </div>
+
+      <!-- Execution Log & Info -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl text-xs text-slate-400 flex flex-col gap-2">
+        <h3 class="font-semibold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-circle-info text-blue-400"></i> Signal Algorithm Notes
+        </h3>
+        <p>
+          Calculates continuous vector angles between landmark points <span class="text-slate-200">(Shoulder → Elbow → Wrist)</span>.
+        </p>
+        <p>
+          In MATLAB: peak height threshold is <code class="text-red-400 font-mono">180 - minimumAngle</code>. Signal peaks on the visual graph represent maximum elbow flex points.
+        </p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Application Logic JS -->
+  <script>
+    // Configuration & State (Matching Python & MATLAB initial parameters)
+    let minimumAngle = 120;
+    let goalAngle = 60;
+    let initialAngle = 180;
+    let selectedArm = "right"; // "right" or "left"
+    let smoothWindow = 5;
+
+    // Rep Counters
+    let standardReps = 0;
+    let goalReps = 0;
+
+    // Time-series buffers for Signal Processing (Matlab equivalents)
+    let timeArray = [];
+    let rawAngles = [];
+    let smoothAngles = [];
+    let peakLocations = []; // Holds index of standard peaks
+    let goalPeakLocations = []; // Holds index of goal peaks
+
+    // Peak Detection Tracking state
+    let inRepRange = false;
+    let inGoalRange = false;
+    let currentMinInRep = 180;
+
+    // Timing & Video variables
+    let isStreaming = false;
+    let startTime = null;
+    let lastFrameTime = performance.now();
+    let fps = 0;
+
+    // DOM Element References
+    const videoElement = document.getElementById('webcam');
+    const outputCanvas = document.getElementById('outputCanvas');
+    const canvasCtx = outputCanvas.getContext('2d');
+    const plotCanvas = document.getElementById('plotCanvas');
+    const plotCtx = plotCanvas.getContext('2d');
+    
+    const startBtn = document.getElementById('startBtn');
+    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const repsHUD = document.getElementById('repsHUD');
+    const goalRepsHUD = document.getElementById('goalRepsHUD');
+    const angleHUD = document.getElementById('angleHUD');
+
+    const minAngleInput = document.getElementById('minAngleInput');
+    const goalAngleInput = document.getElementById('goalAngleInput');
+    const smoothInput = document.getElementById('smoothInput');
+    const minAngleVal = document.getElementById('minAngleVal');
+    const goalAngleVal = document.getElementById('goalAngleVal');
+    const smoothVal = document.getElementById('smoothVal');
+    
+    const armRightBtn = document.getElementById('armRightBtn');
+    const armLeftBtn = document.getElementById('armLeftBtn');
+    const resetDataBtn = document.getElementById('resetDataBtn');
+
+    // Setup input listeners
+    minAngleInput.addEventListener('input', (e) => {
+      minimumAngle = parseInt(e.target.value);
+      minAngleVal.innerText = `${minimumAngle}° (Peak ${180 - minimumAngle}°)`;
+    });
+
+    goalAngleInput.addEventListener('input', (e) => {
+      goalAngle = parseInt(e.target.value);
+      goalAngleVal.innerText = `${goalAngle}° (Peak ${180 - goalAngle}°)`;
+    });
+
+    smoothInput.addEventListener('input', (e) => {
+      smoothWindow = parseInt(e.target.value);
+      smoothVal.innerText = `${smoothWindow} Frames`;
+    });
+
+    armRightBtn.addEventListener('click', () => {
+      selectedArm = 'right';
+      armRightBtn.className = 'py-2 px-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-medium text-sm flex items-center justify-center gap-2 transition';
+      armRightBtn.innerHTML = '<i class="fa-solid fa-check text-xs"></i> Right Arm';
+      armLeftBtn.className = 'py-2 px-3 rounded-lg border border-slate-700 bg-slate-800 text-slate-400 font-medium text-sm flex items-center justify-center gap-2 transition hover:bg-slate-700';
+      armLeftBtn.innerHTML = 'Left Arm';
+    });
+
+    armLeftBtn.addEventListener('click', () => {
+      selectedArm = 'left';
+      armLeftBtn.className = 'py-2 px-3 rounded-lg border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-medium text-sm flex items-center justify-center gap-2 transition';
+      armLeftBtn.innerHTML = '<i class="fa-solid fa-check text-xs"></i> Left Arm';
+      armRightBtn.className = 'py-2 px-3 rounded-lg border border-slate-700 bg-slate-800 text-slate-400 font-medium text-sm flex items-center justify-center gap-2 transition hover:bg-slate-700';
+      armRightBtn.innerHTML = 'Right Arm';
+    });
+
+    resetDataBtn.addEventListener('click', resetSession);
+
+    function resetSession() {
+      standardReps = 0;
+      goalReps = 0;
+      timeArray = [];
+      rawAngles = [];
+      smoothAngles = [];
+      peakLocations = [];
+      goalPeakLocations = [];
+      inRepRange = false;
+      inGoalRange = false;
+      startTime = performance.now();
+      updateHUD(initialAngle);
+    }
+
+    // Mathematical Angle Calculation (Shoulder - Elbow - Wrist Vector Angle)
+    function calculateAngle(p1, p2, p3) {
+      // p1: Shoulder, p2: Elbow, p3: Wrist
+      const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+      const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+
+      const dotProduct = (v1.x * v2.x) + (v1.y * v2.y);
+      const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+      const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+      if (mag1 * mag2 === 0) return initialAngle;
+
+      let cosine = dotProduct / (mag1 * mag2);
+      cosine = Math.max(-1.0, Math.min(1.0, cosine)); // Clamp numerical errors
+      const rad = Math.acos(cosine);
+      return (rad * 180.0) / Math.PI;
+    }
+
+    // Smooth data moving average (MATLAB smoothdata equivalent)
+    function computeMovingAverage(data, windowSize) {
+      if (data.length === 0) return 180;
+      const start = Math.max(0, data.length - windowSize);
+      const subset = data.slice(start);
+      const sum = subset.reduce((a, b) => a + b, 0);
+      return sum / subset.length;
+    }
+
+    // Real-Time Peak Detection & Rep Counter (MATLAB findpeaks logic logic)
+    function processRepCounting(currentSmoothedAngle, timeSec) {
+      // Minimum Threshold (Peak 180 - minimumAngle)
+      if (currentSmoothedAngle <= minimumAngle) {
+        if (!inRepRange) {
+          inRepRange = true;
+          standardReps++;
+          peakLocations.push({ time: timeSec, angle: currentSmoothedAngle });
+        }
+      } else if (currentSmoothedAngle > minimumAngle + 10) { 
+        // Hysteresis buffer (+10 deg) to avoid double counting around boundary
+        inRepRange = false;
+      }
+
+      // Goal Threshold (Peak 180 - goalAngle)
+      if (currentSmoothedAngle <= goalAngle) {
+        if (!inGoalRange) {
+          inGoalRange = true;
+          goalReps++;
+          goalPeakLocations.push({ time: timeSec, angle: currentSmoothedAngle });
+        }
+      } else if (currentSmoothedAngle > goalAngle + 10) {
+        inGoalRange = false;
+      }
+    }
+
+    // MediaPipe Pose Setup
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    });
+
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    pose.onResults(onPoseResults);
+
+    function onPoseResults(results) {
+      // Handle FPS
+      const now = performance.now();
+      fps = Math.round(1000 / (now - lastFrameTime));
+      lastFrameTime = now;
+      fpsDisplay.innerText = `${fps} FPS`;
+
+      // Match canvas resolution to video stream
+      if (outputCanvas.width !== videoElement.videoWidth) {
+        outputCanvas.width = videoElement.videoWidth;
+        outputCanvas.height = videoElement.videoHeight;
+      }
+
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+      canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+
+      let currentAngle = initialAngle;
+
+      if (results.poseLandmarks) {
+        // Draw Skeleton
+        drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: '#00FF00', lineWidth: 3 });
+        drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#FF0000', lineWidth: 1, radius: 4 });
+
+        // Index definitions matching MediaPipe Pose Landmarks
+        // Right Arm: 12 (Shoulder), 14 (Elbow), 16 (Wrist)
+        // Left Arm: 11 (Shoulder), 13 (Elbow), 15 (Wrist)
+        const landmarks = results.poseLandmarks;
+        let shoulder, elbow, wrist;
+
+        if (selectedArm === 'right') {
+          shoulder = landmarks[12];
+          elbow = landmarks[14];
+          wrist = landmarks[16];
+        } else {
+          shoulder = landmarks[11];
+          elbow = landmarks[13];
+          wrist = landmarks[15];
+        }
+
+        if (shoulder && elbow && wrist && shoulder.visibility > 0.5 && elbow.visibility > 0.5 && wrist.visibility > 0.5) {
+          currentAngle = calculateAngle(shoulder, elbow, wrist);
+        }
+      }
+
+      canvasCtx.restore();
+
+      // Signal Processing Loop
+      if (!startTime) startTime = now;
+      const elapsedTime = (now - startTime) / 1000.0;
+
+      rawAngles.push(currentAngle);
+      const smoothedAngle = computeMovingAverage(rawAngles, smoothWindow);
+      
+      timeArray.push(elapsedTime);
+      smoothAngles.push(smoothedAngle);
+
+      // Trigger Peak Detection
+      processRepCounting(smoothedAngle, elapsedTime);
+
+      // Update HUD & Signal Chart
+      updateHUD(smoothedAngle);
+      drawRealTimePlot();
+    }
+
+    function updateHUD(angle) {
+      repsHUD.innerText = standardReps;
+      goalRepsHUD.innerText = goalReps;
+      angleHUD.innerText = `${Math.round(angle)}°`;
+    }
+
+    // Render Real-Time MATLAB-style Signal Plot onto 2D Canvas
+    function drawRealTimePlot() {
+      // Resize plot canvas dimensions
+      const rect = plotCanvas.getBoundingClientRect();
+      if (plotCanvas.width !== rect.width || plotCanvas.height !== rect.height) {
+        plotCanvas.width = rect.width;
+        plotCanvas.height = rect.height;
+      }
+
+      const width = plotCanvas.width;
+      const height = plotCanvas.height;
+
+      plotCtx.clearRect(0, 0, width, height);
+
+      // Grid background
+      plotCtx.strokeStyle = 'rgba(51, 65, 85, 0.3)';
+      plotCtx.lineWidth = 1;
+      for (let y = 0; y < height; y += 30) {
+        plotCtx.beginPath();
+        plotCtx.moveTo(0, y);
+        plotCtx.lineTo(width, y);
+        plotCtx.stroke();
+      }
+
+      if (smoothAngles.length < 2) return;
+
+      // Keep sliding window of latest 150 points for real-time visualization
+      const maxDisplayPoints = 150;
+      const startIndex = Math.max(0, smoothAngles.length - maxDisplayPoints);
+      
+      const visibleAngles = smoothAngles.slice(startIndex);
+      const visibleTimes = timeArray.slice(startIndex);
+
+      const minY = 0;    // 0 deg (Full flex)
+      const maxY = 180;  // 180 deg (Full extension)
+
+      const mapY = (ang) => height - ((ang - minY) / (maxY - minY)) * height;
+      const mapX = (idx) => (idx / (maxDisplayPoints - 1)) * width;
+
+      // Draw Threshold Lines (yline equivalent)
+      // Minimum Threshold Line (Red)
+      const minLineY = mapY(minimumAngle);
+      plotCtx.strokeStyle = '#ef4444';
+      plotCtx.lineWidth = 1.5;
+      plotCtx.setLineDash([5, 5]);
+      plotCtx.beginPath();
+      plotCtx.moveTo(0, minLineY);
+      plotCtx.lineTo(width, minLineY);
+      plotCtx.stroke();
+
+      // Goal Threshold Line (Green)
+      const goalLineY = mapY(goalAngle);
+      plotCtx.strokeStyle = '#22c55e';
+      plotCtx.lineWidth = 1.5;
+      plotCtx.beginPath();
+      plotCtx.moveTo(0, goalLineY);
+      plotCtx.lineTo(width, goalLineY);
+      plotCtx.stroke();
+      plotCtx.setLineDash([]); // Reset dash
+
+      // Draw Smoothed Angle Line Graph (Blue)
+      plotCtx.strokeStyle = '#3b82f6';
+      plotCtx.lineWidth = 2.5;
+      plotCtx.beginPath();
+
+      for (let i = 0; i < visibleAngles.length; i++) {
+        const x = mapX(i);
+        const y = mapY(visibleAngles[i]);
+
+        if (i === 0) plotCtx.moveTo(x, y);
+        else plotCtx.lineTo(x, y);
+      }
+      plotCtx.stroke();
+
+      // Plot Peak Circles (Matching MATLAB plot locations)
+      const firstVisibleTime = visibleTimes[0];
+      const lastVisibleTime = visibleTimes[visibleTimes.length - 1];
+
+      // Standard Peaks (Red Circles)
+      peakLocations.forEach((peak) => {
+        if (peak.time >= firstVisibleTime && peak.time <= lastVisibleTime) {
+          const idx = visibleTimes.findIndex(t => t >= peak.time);
+          if (idx !== -1) {
+            const px = mapX(idx);
+            const py = mapY(peak.angle);
+            plotCtx.fillStyle = '#ef4444';
+            plotCtx.beginPath();
+            plotCtx.arc(px, py, 5, 0, 2 * Math.PI);
+            plotCtx.fill();
+          }
+        }
+      });
+
+      // Goal Peaks (Green Circles)
+      goalPeakLocations.forEach((peak) => {
+        if (peak.time >= firstVisibleTime && peak.time <= lastVisibleTime) {
+          const idx = visibleTimes.findIndex(t => t >= peak.time);
+          if (idx !== -1) {
+            const px = mapX(idx);
+            const py = mapY(peak.angle);
+            plotCtx.strokeStyle = '#22c55e';
+            plotCtx.lineWidth = 2;
+            plotCtx.beginPath();
+            plotCtx.arc(px, py, 8, 0, 2 * Math.PI);
+            plotCtx.stroke();
+          }
+        }
+      });
+    }
+
+    // Camera Stream Controller
+    let cameraUtils = null;
+
+    startBtn.addEventListener('click', async () => {
+      if (!isStreaming) {
+        try {
+          cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+              await pose.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+          });
+
+          await cameraUtils.start();
+          isStreaming = true;
+          cameraPlaceholder.classList.add('hidden');
+          startBtn.innerHTML = '<i class="fa-solid fa-stop"></i> Stop Camera';
+          startBtn.classList.replace('bg-emerald-600', 'bg-red-600');
+          startBtn.classList.replace('hover:bg-emerald-500', 'hover:bg-red-500');
+          resetSession();
+        } catch (err) {
+          console.error("Camera access failed: ", err);
+          alert("Unable to access webcam. Please verify camera permissions in browser.");
+        }
+      } else {
+        if (cameraUtils) await cameraUtils.stop();
+        isStreaming = false;
+        cameraPlaceholder.classList.remove('hidden');
+        startBtn.innerHTML = '<i class="fa-solid fa-play"></i> Start Camera';
+        startBtn.classList.replace('bg-red-600', 'bg-emerald-600');
+        startBtn.classList.replace('hover:bg-red-500', 'hover:bg-emerald-500');
+      }
+    });
+
+  </script>
+</body>
+</html>
